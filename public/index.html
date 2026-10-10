@@ -1,0 +1,354 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#e83e72">
+<title>Ghana Love ❤️</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#fff7fa;color:#29212a}
+header{background:#e83e72;color:white;padding:24px 16px;text-align:center}
+header h1{margin:0;font-size:30px}
+main{max-width:500px;margin:24px auto;padding:0 16px}
+.card{background:white;border-radius:18px;padding:22px;box-shadow:0 4px 18px #0001;margin-bottom:18px}
+h2{margin-top:0}
+label{display:block;margin:14px 0 6px;font-weight:bold}
+input,select,button{width:100%;padding:13px;border-radius:10px;font-size:16px}
+input,select{border:1px solid #ddd;background:white;color:#29212a}
+button{border:0;background:#e83e72;color:white;font-weight:bold;margin-top:14px;cursor:pointer}
+button.secondary{background:#6b5362}
+button:disabled{opacity:.6}
+.notice{font-size:13px;line-height:1.6;color:#655963}
+.status{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.5}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<header>
+<h1>❤️ Ghana Love</h1>
+<p>Meet people. Build connections. Share love.</p>
+</header>
+
+<main>
+<section class="card" id="authCard">
+<h2>Create your account</h2>
+<p>For adults aged 18 and over.</p>
+
+<label for="email">Email</label>
+<input id="email" type="email" autocomplete="email" required placeholder="you@example.com">
+
+<label for="password">Password</label>
+<input id="password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters">
+
+<button id="signup" type="button">Sign up</button>
+<button id="login" class="secondary" type="button">Log in</button>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+</section>
+
+<section id="profileCard" class="card hidden">
+<h2>Your profile</h2>
+
+<label for="displayName">Display name</label>
+<input id="displayName" maxlength="40" placeholder="Your name">
+
+<label for="age">Age (18+)</label>
+<input id="age" type="number" min="18" max="120" inputmode="numeric">
+
+<label for="country">Country</label>
+<select id="country">
+<option value="Ghana">Ghana 🇬🇭</option>
+<option value="Iraq">Iraq 🇮🇶</option>
+<option value="Other">Other country</option>
+</select>
+
+<label for="city">City</label>
+<input id="city" maxlength="60" placeholder="Your city">
+
+<label for="about">About me</label>
+<input id="about" maxlength="200" placeholder="A short introduction">
+
+<button id="save" type="button">Save profile</button>
+<button id="logout" class="secondary" type="button">Log out</button>
+<p id="profileStatus" class="status" role="status" aria-live="polite"></p>
+</section>
+
+<section id="browseCard" class="card hidden">
+  <h2>Discover People ❤️</h2>
+  <p>Meet adults and discover new connections.</p>
+  <button id="refreshProfiles" type="button">Find people</button>
+  <div id="profilesList"></div>
+  <p id="browseStatus" class="status" role="status"></p>
+</section>
+<p class="notice">
+Only adults aged 18 or over may join. Be respectful and use truthful information. Never share your password or publish another person's private information without permission.
+</p>
+</main>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://ewxvammdhxwrasemfvkp.supabase.co';
+
+// Later, replace this placeholder with your NEW Publishable key.
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_JBebP5i2Y4i0pFrGjaLpew_8fh3ULgr';
+
+const statusEl = document.getElementById('status');
+const profileStatus = document.getElementById('profileStatus');
+const authCard = document.getElementById('authCard');
+const profileCard = document.getElementById('profileCard');
+
+const supabaseReady =
+  SUPABASE_PUBLISHABLE_KEY !== 'PASTE_YOUR_NEW_PUBLISHABLE_KEY_HERE';
+
+if (!supabaseReady) {
+  statusEl.textContent =
+    'Setup needed: add your Supabase Publishable key before testing.';
+} else {
+  const supabase = createClient(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY
+  );
+
+  async function getSession() {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
+  }
+
+  async function loadProfile(session) {
+    profileStatus.textContent = '';
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('display_name, age, country, city, about')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (error) {
+      profileStatus.textContent =
+        'Could not load profile: ' + error.message;
+      return;
+    }
+
+    if (data) {
+      document.getElementById('displayName').value =
+        data.display_name || '';
+      document.getElementById('age').value = data.age ?? '';
+      document.getElementById('country').value =
+        data.country || 'Ghana';
+      document.getElementById('city').value = data.city || '';
+      document.getElementById('about').value = data.about || '';
+    }
+  }
+
+  async function showCurrentState() {
+    try {
+      const session = await getSession();
+
+      authCard.classList.toggle('hidden', Boolean(session));
+      profileCard.classList.toggle('hidden', !session);
+document.getElementById('browseCard')
+  .classList.toggle('hidden', !session);
+      if (session) await loadProfile(session);
+    } catch (error) {
+      statusEl.textContent = 'Error: ' + error.message;
+    }
+  }
+
+
+  async function findPeople() {
+    const browseStatus = document.getElementById('browseStatus');
+    const profilesList = document.getElementById('profilesList');
+    const button = document.getElementById('refreshProfiles');
+
+    button.disabled = true;
+    browseStatus.textContent = 'Finding people...';
+    profilesList.replaceChildren();
+
+    try {
+      const session = await getSession();
+      if (!session) throw new Error('Please log in first.');
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, display_name, age, country, city, about')
+        .gte('age', 18)
+        .neq('id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        browseStatus.textContent =
+          'No other profiles yet. Please check again later.';
+        return;
+      }
+
+      for (const person of data) {
+        const card = document.createElement('article');
+        card.className = 'card';
+
+        const name = document.createElement('h3');
+        name.textContent = person.display_name || 'Member';
+
+        const details = document.createElement('p');
+        details.textContent =
+          `${person.age} · ${person.city || ''} · ${person.country || ''}`;
+
+        const about = document.createElement('p');
+        about.textContent = person.about || 'No introduction yet.';
+
+        card.append(name, details, about);
+        profilesList.appendChild(card);
+      }
+
+      browseStatus.textContent = `Found ${data.length} profile(s).`;
+    } catch (error) {
+      browseStatus.textContent = 'Could not find profiles: ' + error.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  document.getElementById('refreshProfiles').onclick = findPeople;
+
+  
+document.getElementById('signup').onclick = async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const button = document.getElementById('signup');
+
+    if (!email || password.length < 8) {
+      statusEl.textContent =
+        'Enter a valid email and a password of at least 8 characters.';
+      return;
+    }
+
+    button.disabled = true;
+    statusEl.textContent = 'Creating account...';
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+        statusEl.textContent = 'Account created successfully.';
+        await showCurrentState();
+      } else {
+        statusEl.textContent =
+          'Check your email for a confirmation link, then log in.';
+      }
+    } catch (error) {
+      statusEl.textContent = 'Sign-up failed: ' + error.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  document.getElementById('login').onclick = async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const button = document.getElementById('login');
+
+    if (!email || !password) {
+      statusEl.textContent = 'Enter your email and password first.';
+      return;
+    }
+
+    button.disabled = true;
+    statusEl.textContent = 'Logging in...';
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      statusEl.textContent = 'Logged in successfully.';
+      await showCurrentState();
+    } catch (error) {
+      statusEl.textContent = 'Login failed: ' + error.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  document.getElementById('save').onclick = async () => {
+    const button = document.getElementById('save');
+    button.disabled = true;
+    profileStatus.textContent = 'Saving profile...';
+
+    try {
+      const session = await getSession();
+      if (!session) throw new Error('Please log in first.');
+
+      const display_name =
+        document.getElementById('displayName').value.trim();
+      const age = Number(document.getElementById('age').value);
+
+      if (!display_name || !Number.isInteger(age) ||
+          age < 18 || age > 120) {
+        throw new Error(
+          'Enter a display name and an age from 18 to 120.'
+        );
+      }
+
+      const profile = {
+        id: session.user.id,
+        display_name,
+        age,
+        country: document.getElementById('country').value,
+        city: document.getElementById('city').value.trim() || null,
+        about: document.getElementById('about').value.trim() || null
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(profile);
+
+      if (error) throw error;
+
+      profileStatus.textContent = 'Profile saved successfully.';
+    } catch (error) {
+      profileStatus.textContent =
+        'Could not save profile: ' + error.message;
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  document.getElementById('logout').onclick = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      profileCard.classList.add('hidden');
+      authCard.classList.remove('hidden');
+      statusEl.textContent = 'You have logged out.';
+      profileStatus.textContent = '';
+    } catch (error) {
+      profileStatus.textContent = 'Logout failed: ' + error.message;
+    }
+  };
+
+  supabase.auth.onAuthStateChange(() => {
+    setTimeout(() => {
+      void showCurrentState();
+    }, 0);
+  });
+
+  await showCurrentState();
+}
+</script>
+</body>
+</html>
